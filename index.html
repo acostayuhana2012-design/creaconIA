@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Creador de Presentaciones AI</title>
+    <!-- Dependencias -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <!-- Babel Standalone (la clave para que esto funcione) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js";
+    </script>
+<script type="importmap">
+{
+  "imports": {
+    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.16.0"
+  }
+}
+</script>
+</head>
+<body class="bg-slate-900 text-white font-sans">
+    <div id="root"></div>
+
+    <!-- El tipo de script se cambia a "text/babel" para que Babel lo traduzca -->
+    <script type="text/babel">
+        // Todo el código de React ahora vive dentro de esta única etiqueta de script.
+        const { useState, useCallback } = React;
+
+        // --- 1. LÓGICA DEL SERVICIO ---
+        const generateSlidesFromText = async (text) => {
+            try {
+                const response = await fetch('/api/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Ocurrió un error en el servidor.');
+                }
+                const result = await response.json();
+                if (result && result.slides) {
+                    return result.slides;
+                } else {
+                    throw new Error("El backend devolvió un formato de datos inesperado.");
+                }
+            } catch (err) {
+                console.error("Error al contactar el backend:", err);
+                throw new Error(err.message || "No se pudo generar la presentación. Inténtalo de nuevo.");
+            }
+        };
+
+
+        // --- 2. COMPONENTES DE REACT ---
+        const ErrorDisplay = ({ message, onClear }) => (
+            <div className="w-full max-w-2xl bg-red-900/50 border border-red-700 text-red-200 px-4 py-3 rounded-lg relative mb-6 flex items-center justify-between" role="alert">
+                <div>
+                    <strong className="font-bold">¡Error!</strong>
+                    <span className="block sm:inline ml-2">{message}</span>
+                </div>
+                <button onClick={onClear} className="p-1 rounded-full hover:bg-red-800/50 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+        );
+
+        const Header = () => (
+            <header className="text-center mb-10">
+                <div className="flex items-center justify-center gap-4">
+                    <div className="p-3 bg-cyan-500/10 rounded-xl">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-cyan-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-4xl md:text-5xl font-extrabold tracking-tight bg-gradient-to-r from-cyan-400 to-teal-400 text-transparent bg-clip-text">
+                        Creador de Presentaciones AI
+                    </h1>
+                </div>
+            </header>
+        );
+        
+        const Loader = ({ message }) => (
+            <div className="flex flex-col items-center justify-center text-center p-8">
+                <div className="w-16 h-16 border-4 border-dashed rounded-full animate-spin border-cyan-400"></div>
+                <p className="mt-6 text-xl text-slate-300 font-semibold">{message}</p>
+                <p className="mt-2 text-slate-500">Gracias por tu paciencia.</p>
+            </div>
+        );
+
+        const FileUpload = ({ onFileProcess }) => {
+            const [dragActive, setDragActive] = useState(false);
+            const handleDrag = useCallback((e) => {
+                e.preventDefault(); e.stopPropagation();
+                if (e.type === "dragenter" || e.type === "dragover") setDragActive(true);
+                else if (e.type === "dragleave") setDragActive(false);
+            }, []);
+            const handleDrop = useCallback((e) => {
+                e.preventDefault(); e.stopPropagation(); setDragActive(false);
+                if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+                    if (e.dataTransfer.files[0].type === 'application/pdf') onFileProcess(e.dataTransfer.files[0]);
+                    else alert("Por favor, sube solo archivos PDF.");
+                }
+            }, [onFileProcess]);
+            const handleChange = (e) => {
+                e.preventDefault();
+                if (e.target.files && e.target.files[0]) {
+                    if (e.target.files[0].type === 'application/pdf') onFileProcess(e.target.files[0]);
+                    else alert("Por favor, sube solo archivos PDF.");
+                }
+            };
+            return (
+                <div className="w-full max-w-2xl text-center p-8 bg-slate-800 rounded-2xl shadow-2xl border border-slate-700">
+                    <h2 className="text-2xl md:text-3xl font-bold text-cyan-400 mb-4">Transforma tus PDFs en Presentaciones</h2>
+                    <p className="text-slate-400 mb-8">Sube un documento PDF y nuestra IA lo convertirá en un conjunto de diapositivas claras y profesionales en segundos.</p>
+                    <form onDragEnter={handleDrag} onSubmit={(e) => e.preventDefault()}>
+                        <input type="file" id="input-file-upload" accept="application/pdf" className="hidden" onChange={handleChange} />
+                        <label htmlFor="input-file-upload" className={`relative block w-full h-48 rounded-lg border-2 border-dashed border-slate-600 cursor-pointer ${dragActive ? "bg-slate-700 border-cyan-400" : "bg-slate-800"}`} onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}>
+                            <div className="flex flex-col items-center justify-center h-full">
+                                <svg xmlns="http://www.w3.org/2000/svg" className={`w-12 h-12 mb-4 ${dragActive ? 'text-cyan-400' : 'text-slate-500'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" /></svg>
+                                <p className="font-semibold text-slate-300"><span className="text-cyan-400">Haz clic para subir</span> o arrastra y suelta un PDF</p>
+                            </div>
+                        </label>
+                    </form>
+                </div>
+            );
+        };
+        
+        const SlideContent = ({ slide }) => {
+            if (!slide) return <p className="text-center text-slate-400">No hay diapositiva para mostrar.</p>;
+            return (
+                <div className="w-full h-full flex flex-col justify-start text-left p-4 md:p-8">
+                    <h3 className="text-2xl md:text-4xl font-bold text-cyan-300 mb-6">{slide.title}</h3>
+                    <ul className="space-y-4 list-disc list-inside text-lg md:text-xl text-slate-200">
+                        {slide.content.map((point, index) => <li key={index} className="leading-relaxed">{point}</li>)}
+                    </ul>
+                </div>
+            );
+        };
+
+        const PresentationView = ({ slides, onReset }) => {
+            const [currentSlide, setCurrentSlide] = useState(0);
+            const [showNotes, setShowNotes] = useState(false);
+            const goToNextSlide = () => setCurrentSlide((prev) => (prev < slides.length - 1 ? prev + 1 : prev));
+            const goToPrevSlide = () => setCurrentSlide((prev) => (prev > 0 ? prev - 1 : prev));
+            const activeSlide = slides[currentSlide];
+            return (
+                <div className="w-full flex flex-col items-center">
+                    <div className="w-full aspect-[16/9] max-w-4xl bg-slate-800 rounded-lg shadow-2xl border border-slate-700 p-8 flex flex-col justify-center items-center">
+                        <SlideContent slide={activeSlide} />
+                    </div>
+                    <div className="w-full max-w-4xl mt-4 flex justify-between items-center">
+                        <button onClick={goToPrevSlide} disabled={currentSlide === 0} className="px-4 py-2 bg-slate-700 text-white rounded-md disabled:opacity-50">Anterior</button>
+                        <span className="text-slate-400">{`Diapositiva ${currentSlide + 1} de ${slides.length}`}</span>
+                        <button onClick={goToNextSlide} disabled={currentSlide === slides.length - 1} className="px-4 py-2 bg-slate-700 text-white rounded-md disabled:opacity-50">Siguiente</button>
+                    </div>
+                    <div className="w-full max-w-4xl mt-6">
+                        <button onClick={() => setShowNotes(!showNotes)} className="w-full text-left px-4 py-2 bg-slate-800 border border-slate-700 rounded-t-lg text-cyan-400 font-semibold">{showNotes ? 'Ocultar' : 'Mostrar'} Notas del Orador</button>
+                        {showNotes && (<div className="p-6 bg-slate-800 border-t-0 border border-slate-700 rounded-b-lg text-slate-300"><p>{activeSlide.speakerNotes}</p></div>)}
+                    </div>
+                    <div className="mt-8">
+                        <button onClick={onReset} className="px-6 py-2 bg-cyan-600 text-white font-semibold rounded-md hover:bg-cyan-500">Crear Nueva Presentación</button>
+                    </div>
+                </div>
+            );
+        };
+
+        // --- 3. COMPONENTE PRINCIPAL DE LA APLICACIÓN ---
+        const App = () => {
+            const [slides, setSlides] = useState([]);
+            const [isLoading, setIsLoading] = useState(false);
+            const [loadingMessage, setLoadingMessage] = useState('');
+            const [error, setError] = useState(null);
+
+            const handleFileProcess = useCallback(async (file) => {
+                setIsLoading(true); setError(null); setSlides([]);
+                try {
+                    setLoadingMessage('Leyendo el archivo PDF...');
+                    const arrayBuffer = await file.arrayBuffer();
+                    const typedArray = new Uint8Array(arrayBuffer);
+                    const pdf = await pdfjsLib.getDocument(typedArray).promise;
+                    let fullText = '';
+                    setLoadingMessage(`Extrayendo texto de ${pdf.numPages} páginas...`);
+                    for (let i = 1; i <= pdf.numPages; i++) {
+                        const page = await pdf.getPage(i);
+                        const textContent = await page.getTextContent();
+                        fullText += textContent.items.map((item) => item.str).join(' ') + '\n\n';
+                    }
+                    setLoadingMessage('La IA está creando tu presentación...');
+                    const generatedSlides = await generateSlidesFromText(fullText);
+                    if (generatedSlides && generatedSlides.length > 0) setSlides(generatedSlides);
+                    else throw new Error("La IA no pudo generar diapositivas.");
+                } catch (e) {
+                    console.error("Error en el proceso:", e);
+                    setError(e.message || "Ocurrió un error desconocido.");
+                } finally {
+                    setIsLoading(false); setLoadingMessage('');
+                }
+            }, []);
+
+            const handleReset = () => { setSlides([]); setError(null); setIsLoading(false); };
+
+            return (
+                <div className="min-h-screen flex flex-col items-center p-4 md:p-8">
+                    <Header />
+                    <main className="w-full max-w-5xl flex-grow flex flex-col items-center justify-center">
+                        {error && <ErrorDisplay message={error} onClear={() => setError(null)} />}
+                        {isLoading ? <Loader message={loadingMessage} /> : slides.length === 0 ? <FileUpload onFileProcess={handleFileProcess} /> : <PresentationView slides={slides} onReset={handleReset} />}
+                    </main>
+                    <footer className="text-center p-4 text-slate-500 text-sm">
+                        <p>Creado con la API de Gemini.</p>
+                    </footer>
+                </div>
+            );
+        };
+
+        // --- 4. RENDERIZAR LA APLICACIÓN ---
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+
+    </script>
+</body>
+</html>

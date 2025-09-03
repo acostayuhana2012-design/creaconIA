@@ -1,0 +1,5 @@
+{
+  "name": "Creador de Presentaciones AI",
+  "description": "Una aplicación web que transforma documentos PDF en presentaciones atractivas utilizando IA. Simplemente sube un PDF y la aplicación generará un conjunto de diapositivas listas para usar.",
+  "requestFramePermissions": []
+}

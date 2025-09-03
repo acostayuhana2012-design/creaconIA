@@ -1,0 +1,8 @@
+{
+  "name": "creador-de-presentaciones-api",
+  "version": "1.0.0",
+  "description": "Dependencias para la función serverless del creador de presentaciones.",
+  "dependencies": {
+    "@google/genai": "^1.16.0"
+  }
+}
