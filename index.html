@@ -38,10 +38,20 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ text }),
                 });
+
+                // FIX: Manejo de errores mejorado y robusto.
                 if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Ocurrió un error en el servidor.');
+                    const errorText = await response.text();
+                    // Intentamos interpretar el error como JSON, si no, mostramos el texto del error.
+                    // Esto es útil para errores de servidor como timeouts que no devuelven JSON.
+                    try {
+                        const errorJson = JSON.parse(errorText);
+                        throw new Error(errorJson.message || `Error del servidor: ${response.status}`);
+                    } catch (e) {
+                         throw new Error(errorText || `Error del servidor: ${response.status}`);
+                    }
                 }
+                
                 const result = await response.json();
                 if (result && result.slides) {
                     return result.slides;
